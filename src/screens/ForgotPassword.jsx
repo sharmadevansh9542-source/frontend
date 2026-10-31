@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 const API = 'http://localhost:8085/api/auth';
 

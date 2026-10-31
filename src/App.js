@@ -1,49 +1,52 @@
-import React, { useState, useEffect } from 'react';
-import './index.css';
+'use client';
 
-import Landing        from './pages/Landing';
-import Login          from './pages/Login';
-import Register       from './pages/Register';
-import ForgotPassword from './pages/ForgotPassword';
-import AdminDashboard   from './dashboards/AdminDashboard';
-import DoctorDashboard  from './dashboards/DoctorDashboard';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+
+import { useAuth } from './app/providers';
+import AdminDashboard from './dashboards/AdminDashboard';
+import DoctorDashboard from './dashboards/DoctorDashboard';
 import PatientDashboard from './dashboards/PatientDashboard';
+import ForgotPassword from './screens/ForgotPassword';
+import Landing from './screens/Landing';
+import Login from './screens/Login';
+import Register from './screens/Register';
 
-/*
-  Router state shape:
-  { page: 'landing' | 'login' | 'register' | 'forgot' | 'dashboard', role: 'ADMIN'|'DOCTOR'|'PATIENT', extra: {} }
-*/
+const pagePaths = {
+  landing: '/',
+  login: '/login',
+  register: '/register',
+  forgot: '/forgot-password',
+  dashboard: '/dashboard',
+};
 
-export default function App() {
-  const [route, setRoute] = useState({ page: 'landing', role: null });
-  const [user,  setUser]  = useState(() => {
-    try { return JSON.parse(localStorage.getItem('hmsUser')); } catch { return null; }
-  });
+export default function App({ page, role }) {
+  const router = useRouter();
+  const { user, setUser, sessionReady } = useAuth();
 
-  /* Auto-restore session */
   useEffect(() => {
-    const token = localStorage.getItem('hmsToken');
-    const saved = localStorage.getItem('hmsUser');
-    if (token && saved) {
-      try {
-        const u = JSON.parse(saved);
-        setUser(u);
-        setRoute({ page: 'dashboard', role: u.role });
-      } catch { /* ignore */ }
+    if (!sessionReady) return;
+
+    if (user && page !== 'dashboard') {
+      router.replace('/dashboard');
+    } else if (!user && page === 'dashboard') {
+      router.replace('/');
     }
-  }, []);
+  }, [page, router, sessionReady, user]);
 
-  /* ── Navigation helper ── */
-  const navigate = (page, { role, ...extra } = {}) => {
-    setRoute(r => ({ page, role: role ?? r.role, extra }));
+  const navigate = (nextPage, { role: nextRole } = {}) => {
+    const path = pagePaths[nextPage];
+    if (!path) {
+      throw new Error(`Unknown page: ${nextPage}`);
+    }
+
+    const query = nextRole ? `?role=${encodeURIComponent(nextRole)}` : '';
+    router.push(`${path}${query}`);
   };
-
-  /* ── Auth handlers ── */
-  const handleRoleSelect = (role) => navigate('login', { role });
 
   const handleLoginSuccess = (userData) => {
     setUser(userData);
-    navigate('dashboard', { role: userData.role });
+    navigate('dashboard');
   };
 
   const handleLogout = () => {
@@ -53,58 +56,49 @@ export default function App() {
     navigate('landing');
   };
 
-  /* ── Render ── */
-  const { page, role } = route;
+  let content = null;
 
-  /* Dashboard routing by role */
   if (page === 'dashboard' && user) {
     const Dashboard = {
-      ADMIN:   AdminDashboard,
-      DOCTOR:  DoctorDashboard,
+      ADMIN: AdminDashboard,
+      DOCTOR: DoctorDashboard,
       PATIENT: PatientDashboard,
     }[user.role] || AdminDashboard;
 
-    return (
-      <>
-        <div className="bg-mesh" />
-        <Dashboard user={user} onLogout={handleLogout} />
-      </>
+    content = <Dashboard user={user} onLogout={handleLogout} />;
+  } else if (page === 'landing') {
+    content = <Landing onRoleSelect={(selectedRole) => navigate('login', { role: selectedRole })} />;
+  } else if (page === 'login') {
+    content = (
+      <Login
+        role={role}
+        onBack={() => navigate('landing')}
+        onLoginSuccess={handleLoginSuccess}
+        onNavigate={navigate}
+      />
+    );
+  } else if (page === 'register') {
+    content = (
+      <Register
+        role={role}
+        onBack={() => navigate('login', { role })}
+        onNavigate={navigate}
+      />
+    );
+  } else if (page === 'forgot') {
+    content = (
+      <ForgotPassword
+        role={role}
+        onBack={() => navigate('login', { role })}
+        onNavigate={navigate}
+      />
     );
   }
 
   return (
     <>
-      {/* Animated background */}
       <div className="bg-mesh" />
-
-      {page === 'landing' && (
-        <Landing onRoleSelect={handleRoleSelect} />
-      )}
-
-      {page === 'login' && (
-        <Login
-          role={role}
-          onBack={() => navigate('landing')}
-          onLoginSuccess={handleLoginSuccess}
-          onNavigate={navigate}
-        />
-      )}
-
-      {page === 'register' && (
-        <Register
-          role={role}
-          onBack={() => navigate('login', { role })}
-          onNavigate={navigate}
-        />
-      )}
-
-      {page === 'forgot' && (
-        <ForgotPassword
-          role={role}
-          onBack={() => navigate('login', { role })}
-          onNavigate={navigate}
-        />
-      )}
+      {content}
     </>
   );
 }

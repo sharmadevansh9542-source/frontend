@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 const roleConfig = {
   ADMIN:   { icon: '🛡️', label: 'Admin',   gradient: 'linear-gradient(135deg,#667eea,#764ba2)', color: '#667eea' },
